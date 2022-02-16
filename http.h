@@ -21,6 +21,7 @@ class http {
 public:
     static const int READ_BUFFER_SIZE = 2048;
     static const int WRITE_BUFFER_SIZE = 1024;
+    const char* srcDir="./files";
     enum CHECK_STATE {
         CHECK_STATE_REQUESTLINE = 0, CHECK_STATE_HEADER
     };
@@ -41,15 +42,21 @@ public:
     void init(int _sockfd);
 
 private:
+    bool read_once();
+
     HTTP_CODE parse_content();
 
     LINE_STATUS parse_line();
 
     HTTP_CODE parse_requestline(char *temp, CHECK_STATE &checkState);
 
-    HTTP_CODE parse_path();
+    HTTP_CODE do_request();
+
+    void parsePath();
 
     HTTP_CODE parse_headers(char *temp);
+
+    void process();
 
     bool process_write(HTTP_CODE ret);
 
@@ -73,6 +80,7 @@ private:
 
     bool write();
 
+
 private:
     bool m_linger;
     int sockfd;
@@ -85,7 +93,7 @@ private:
     int bytes_have_send;
 
     char *method;
-    char *path;
+    char *url;
     char *version;
     char *fileAddress;
     struct stat fileStat;

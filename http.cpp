@@ -2,6 +2,7 @@
 // Created by 吴中奇 on 2022/1/26.
 //
 
+#include <iostream>
 #include "http.h"
 
 void http::init(int _sockfd) {
@@ -12,30 +13,46 @@ void http::init(int _sockfd) {
     start_line = 0;
 
     char *szret[] = {"I got a correct result\n", "wrong\n"};
-
     int dataRead = 0;
-    while (true) {
-        dataRead = recv(sockfd, readBuffer + read_index, READ_BUFFER_SIZE - read_index, 0);
-        if (dataRead == -1) {
-            printf("read failed\n");
-            break;
-        } else if (dataRead == 0) {
-            printf("client has closed the connection\n");
-            break;
-        }
-        read_index += dataRead;
-        HTTP_CODE result = parse_content();
-        if (result == NO_REQUEST) {
-            continue;
-        } else if (result == GET_REQUEST) {
-            send(sockfd, szret[0], strlen(szret[0]), 0);
-            break;
-        } else {
-            send(sockfd, szret[1], strlen(szret[1]), 0);
-            break;
-        }
-    }
+
+    read_once();
+    checkState = CHECK_STATE_REQUESTLINE;
+    process();
+//    write();
     close(sockfd);
+
+}
+
+bool http::read_once() {
+    int dataRead = 0;
+
+    //LT read
+    dataRead = recv(sockfd, readBuffer + read_index, READ_BUFFER_SIZE - read_index, 0);
+    read_index += dataRead;
+    if (dataRead == -1) {
+        printf("read failed\n");
+        return false;
+    } else if (dataRead == 0) {
+        printf("client has closed the connection\n");
+        return false;
+    }
+
+    //ET read
+//    while (true) {
+//        dataRead = recv(sockfd, readBuffer + read_index, READ_BUFFER_SIZE - read_index, 0);
+//        if (dataRead == -1) {
+//            printf("read failed\n");
+//            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+//                break;
+//            }
+//            return false;
+//        } else if (dataRead == 0) {
+//            printf("client has closed the connection\n");
+//            return false;
+//        }
+//        read_index += dataRead;
+//    }
+    return true;
 }
 
 //从状态机，解析第一行内容
@@ -74,11 +91,11 @@ http::LINE_STATUS http::parse_line() {
 http::HTTP_CODE http::parse_requestline(char *temp, http::CHECK_STATE &checkState) {
 
     //如果请求行没有空格或"\t"则肯定有问题
-    path = strpbrk(temp, " \t");
-    if (!path) {
+    url = strpbrk(temp, " \t");
+    if (!url) {
         return BAD_REQUEST;
     }
-    *path++ = '\0';
+    *url++ = '\0';
 
     method = temp;
     if (strcasecmp(method, "GET") == 0) {
@@ -90,8 +107,8 @@ http::HTTP_CODE http::parse_requestline(char *temp, http::CHECK_STATE &checkStat
     }
 
     //返回 str1 中第一个不在字符串 str2 中出现的字符下标
-    path += strspn(path, " \t");
-    version = strpbrk(path, " \t");
+    url += strspn(url, " \t");
+    version = strpbrk(url, " \t");
     if (!version) {
         return BAD_REQUEST;
     }
@@ -102,26 +119,32 @@ http::HTTP_CODE http::parse_requestline(char *temp, http::CHECK_STATE &checkStat
     if (strcasecmp(version, "HTTP/1.1") != 0) {
         return BAD_REQUEST;
     }
-    if (strncasecmp(path, "http://", 7) == 0) {
-        path += 7;
-        path = strchr(path, '/');
+    if (strncasecmp(url, "http://", 7) == 0) {
+        url += 7;
+        url = strchr(url, '/');
         //url指向/
     }
-    if (!path || path[0] != '/') {
+    if (!url || url[0] != '/') {
         return BAD_REQUEST;
     }
-    printf("The request path is %s\n", path);
+    printf("The request url is %s\n", url);
 
     checkState = CHECK_STATE_HEADER;
     return NO_REQUEST;
 }
 
-http::HTTP_CODE http::parse_path() {
-    if (strcmp(path, "/") == 0) {
-        path = "/test.html";
+void http::parsePath() {
+    if (strcmp(url, "/") == 0) {
+        url = "/test.html";
     }
+}
+
+http::HTTP_CODE http::do_request() {
+    char *pathOfFile = (char *) malloc(strlen(pathOfFile) + strlen(url) + 1);
+    strcpy(pathOfFile, srcDir);
+    strcat(pathOfFile, url);
     //通过stat请求资源文件信息，成功则将信息存储到fileStat
-    if (stat(path, &fileStat) < 0) {
+    if (stat(pathOfFile, &fileStat) < 0) {
         return NO_RESOURCE;
     }
     //若资源文件不可读
@@ -134,11 +157,11 @@ http::HTTP_CODE http::parse_path() {
     }
 
     //只读方式获取文件描述符，用mmap映射到内存
-    int fileFd = open(path, O_RDONLY);
+    int fileFd = open(pathOfFile, O_RDONLY);
     fileAddress = (char *) mmap(0, fileStat.st_size, PROT_READ, MAP_PRIVATE, fileFd, 0);
     close(fileFd);
-
-    return FILE_REQUEST;
+    free(pathOfFile);
+    return GET_REQUEST;
 }
 
 bool http::addResponse(const char *format, ...) {
@@ -208,7 +231,7 @@ bool http::process_write(HTTP_CODE ret) {
             }
             break;
         }
-        case FILE_REQUEST: {
+        case GET_REQUEST: {
             addStatusLine(200, "OK");
             if (fileStat.st_size != 0) {
                 addHeaders(fileStat.st_size);
@@ -264,7 +287,7 @@ http::HTTP_CODE http::parse_content() {
         switch (checkState) {
             case CHECK_STATE_REQUESTLINE: {
                 httpCode = parse_requestline(temp, checkState);
-                parse_path();
+                parsePath();
                 if (httpCode == BAD_REQUEST) {
                     return BAD_REQUEST;
                 }
@@ -275,7 +298,7 @@ http::HTTP_CODE http::parse_content() {
                 if (httpCode == BAD_REQUEST) {
                     return BAD_REQUEST;
                 } else if (httpCode == GET_REQUEST) {
-                    return GET_REQUEST;
+                    return do_request();
                 }
                 break;
             }
@@ -292,15 +315,50 @@ http::HTTP_CODE http::parse_content() {
 }
 
 bool http::write() {
-    ssize_t len = -1;
-    int newadd=0;
+    int len = -1;
+    bool flag = false;
+    while (true) {
+        len = writev(sockfd, m_iv, count_iv);
 
-    while(true){
-        len= writev(sockfd,m_iv,count_iv);
-
-        if(len>0){
-            bytes_have_send+=len;
-            newadd=bytes_have_send
+        if (len <= 0) {
+            flag = false;
+            break;
         }
+        if (m_iv[0].iov_len + m_iv[1].iov_len <= 0) {
+            flag = true;
+            break;
+        }
+
+        //若m_iv[0]已发送完，发送第二个数据
+        if (bytes_have_send >= m_iv[0].iov_len) {
+            m_iv[1].iov_base = (uint8_t *) m_iv[1].iov_base + (len - m_iv[0].iov_len);
+            m_iv[1].iov_len -= (len - m_iv[0].iov_len);
+            m_iv[0].iov_len = 0;
+        } else {
+            //否则继续发送第一个
+            m_iv[0].iov_base = (uint8_t *) m_iv[0].iov_base + len;
+            m_iv[0].iov_len -= bytes_have_send;
+        }
+
     }
+
+    //取消映射
+    if (fileAddress) {
+        munmap(fileAddress, fileStat.st_size);
+        fileAddress = 0;
+    }
+    return flag;
+}
+
+
+void http::process() {
+    HTTP_CODE resRead = parse_content();
+    if (resRead == NO_REQUEST) {
+        return;
+    }
+    bool resWrite = process_write(resRead);
+    if (!resWrite) {
+        close(sockfd);
+    }
+    write();
 }
