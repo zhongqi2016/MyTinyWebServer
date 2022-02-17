@@ -21,7 +21,7 @@ class http {
 public:
     static const int READ_BUFFER_SIZE = 2048;
     static const int WRITE_BUFFER_SIZE = 1024;
-    const char* srcDir="./files";
+    static constexpr char* srcDir="./files";
     enum CHECK_STATE {
         CHECK_STATE_REQUESTLINE = 0, CHECK_STATE_HEADER
     };
@@ -89,8 +89,8 @@ private:
     int read_index;
     int write_index;
 
-    int bytes_to_send;
-    int bytes_have_send;
+//    int bytes_to_send;
+//    int bytes_have_send;
 
     char *method;
     char *url;

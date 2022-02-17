@@ -242,7 +242,7 @@ bool http::process_write(HTTP_CODE ret) {
                 m_iv[1].iov_base = fileAddress;
                 m_iv[1].iov_len = fileStat.st_size;
                 count_iv = 2;
-                bytes_to_send = write_index + fileStat.st_size;
+//                bytes_to_send = write_index + fileStat.st_size;
                 return true;
             } else {
                 const char *ok_string = "<html><body></body></html>";
@@ -322,6 +322,7 @@ bool http::write() {
 
         if (len <= 0) {
             flag = false;
+            std::cout << errno << std::endl;
             break;
         }
         if (m_iv[0].iov_len + m_iv[1].iov_len <= 0) {
@@ -330,14 +331,14 @@ bool http::write() {
         }
 
         //若m_iv[0]已发送完，发送第二个数据
-        if (bytes_have_send >= m_iv[0].iov_len) {
+        if (len >= m_iv[0].iov_len) {
             m_iv[1].iov_base = (uint8_t *) m_iv[1].iov_base + (len - m_iv[0].iov_len);
             m_iv[1].iov_len -= (len - m_iv[0].iov_len);
             m_iv[0].iov_len = 0;
         } else {
             //否则继续发送第一个
             m_iv[0].iov_base = (uint8_t *) m_iv[0].iov_base + len;
-            m_iv[0].iov_len -= bytes_have_send;
+            m_iv[0].iov_len -= len;
         }
 
     }
