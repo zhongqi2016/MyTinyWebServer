@@ -5,8 +5,7 @@
 #ifndef WEBSERVER_HTTP_H
 #define WEBSERVER_HTTP_H
 
-#include <string.h>
-#include <stdio.h>
+#include <cstring>
 #include <netinet/in.h>
 #include <unistd.h>
 #include <sys/mman.h>
@@ -14,14 +13,14 @@
 #include <sys/uio.h>
 #include <fcntl.h>
 #include <cstdarg>
-#include <errno.h>
+#include <cerrno>
 
 
 class http {
 public:
     static const int READ_BUFFER_SIZE = 2048;
     static const int WRITE_BUFFER_SIZE = 1024;
-    static constexpr char* srcDir="./files";
+    static constexpr const char *srcDir = "./files";
     enum CHECK_STATE {
         CHECK_STATE_REQUESTLINE = 0, CHECK_STATE_HEADER
     };
@@ -52,15 +51,11 @@ private:
 
     HTTP_CODE do_request();
 
-    void parsePath();
-
-    HTTP_CODE parse_headers(char *temp);
+    HTTP_CODE parse_headers(const char *temp);
 
     void process();
 
     bool process_write(HTTP_CODE ret);
-
-    void serve_static();
 
     bool addResponse(const char *format, ...);
 
@@ -88,16 +83,13 @@ private:
     int checked_index;
     int read_index;
     int write_index;
-
-//    int bytes_to_send;
 //    int bytes_have_send;
-
     char *method;
     char *url;
     char *version;
     char *fileAddress;
     struct stat fileStat;
-    sockaddr_in address;
+//    sockaddr_in address;
     char readBuffer[READ_BUFFER_SIZE];
     char writeBuffer[WRITE_BUFFER_SIZE];
     CHECK_STATE checkState;

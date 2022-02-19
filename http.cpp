@@ -9,11 +9,9 @@ void http::init(int _sockfd) {
     sockfd = _sockfd;
     memset(readBuffer, '\0', READ_BUFFER_SIZE);
     read_index = 0;
+    write_index=0;
     checked_index = 0;
     start_line = 0;
-
-    char *szret[] = {"I got a correct result\n", "wrong\n"};
-    int dataRead = 0;
 
     read_once();
     checkState = CHECK_STATE_REQUESTLINE;
@@ -133,16 +131,17 @@ http::HTTP_CODE http::parse_requestline(char *temp, http::CHECK_STATE &checkStat
     return NO_REQUEST;
 }
 
-void http::parsePath() {
-    if (strcmp(url, "/") == 0) {
-        url = "/test.html";
-    }
-}
+
 
 http::HTTP_CODE http::do_request() {
     char *pathOfFile = (char *) malloc(strlen(pathOfFile) + strlen(url) + 1);
     strcpy(pathOfFile, srcDir);
-    strcat(pathOfFile, url);
+    if (strcmp(url, "/") == 0) {
+        strcat(pathOfFile, "/test.html");
+    }
+    else {
+        strcat(pathOfFile, url);
+    }
     //通过stat请求资源文件信息，成功则将信息存储到fileStat
     if (stat(pathOfFile, &fileStat) < 0) {
         return NO_RESOURCE;
@@ -158,7 +157,7 @@ http::HTTP_CODE http::do_request() {
 
     //只读方式获取文件描述符，用mmap映射到内存
     int fileFd = open(pathOfFile, O_RDONLY);
-    fileAddress = (char *) mmap(0, fileStat.st_size, PROT_READ, MAP_PRIVATE, fileFd, 0);
+    fileAddress = (char *) mmap(nullptr, fileStat.st_size, PROT_READ, MAP_PRIVATE, fileFd, 0);
     close(fileFd);
     free(pathOfFile);
     return GET_REQUEST;
@@ -265,7 +264,7 @@ bool http::process_write(HTTP_CODE ret) {
 }
 
 //分析头部字段
-http::HTTP_CODE http::parse_headers(char *temp) {
+http::HTTP_CODE http::parse_headers(const char *temp) {
     //如果遇到一个空行，说明我们的到了一个正确的HTTP请求
     if (temp[0] == '\0') {
         return GET_REQUEST;
@@ -287,7 +286,6 @@ http::HTTP_CODE http::parse_content() {
         switch (checkState) {
             case CHECK_STATE_REQUESTLINE: {
                 httpCode = parse_requestline(temp, checkState);
-                parsePath();
                 if (httpCode == BAD_REQUEST) {
                     return BAD_REQUEST;
                 }
