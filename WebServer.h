@@ -20,7 +20,7 @@
 class WebServer {
 public:
     WebServer(int _port):port(_port){}
-    void start();
+    void start() const;
 private:
     int port;
 };

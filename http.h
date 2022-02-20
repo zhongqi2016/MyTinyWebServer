@@ -51,7 +51,7 @@ private:
 
     HTTP_CODE do_request();
 
-    HTTP_CODE parse_headers(const char *temp);
+    static HTTP_CODE parse_headers(const char *temp);
 
     void process();
 
@@ -61,9 +61,9 @@ private:
 
     bool addStatusLine(int status, const char *title);
 
-    bool addHeaders(int content_len);
+    bool addHeaders(size_t content_len);
 
-    bool addContentLength(int content_len);
+    bool addContentLength(size_t content_len);
 
     bool addContentType();
 
@@ -83,13 +83,11 @@ private:
     int checked_index;
     int read_index;
     int write_index;
-//    int bytes_have_send;
     char *method;
     char *url;
     char *version;
     char *fileAddress;
     struct stat fileStat;
-//    sockaddr_in address;
     char readBuffer[READ_BUFFER_SIZE];
     char writeBuffer[WRITE_BUFFER_SIZE];
     CHECK_STATE checkState;

@@ -9,7 +9,7 @@ void http::init(int _sockfd) {
     sockfd = _sockfd;
     memset(readBuffer, '\0', READ_BUFFER_SIZE);
     read_index = 0;
-    write_index=0;
+    write_index = 0;
     checked_index = 0;
     start_line = 0;
 
@@ -132,14 +132,12 @@ http::HTTP_CODE http::parse_requestline(char *temp, http::CHECK_STATE &checkStat
 }
 
 
-
 http::HTTP_CODE http::do_request() {
     char *pathOfFile = (char *) malloc(strlen(pathOfFile) + strlen(url) + 1);
     strcpy(pathOfFile, srcDir);
     if (strcmp(url, "/") == 0) {
         strcat(pathOfFile, "/test.html");
-    }
-    else {
+    } else {
         strcat(pathOfFile, url);
     }
     //通过stat请求资源文件信息，成功则将信息存储到fileStat
@@ -181,32 +179,32 @@ bool http::addResponse(const char *format, ...) {
     return true;
 }
 
-bool http::addStatusLine(int status, const char *title) {
+inline bool http::addStatusLine(int status, const char *title) {
     return addResponse("%s %d %s\r\n", "HTTP/1.1", status, title);
 }
 
-bool http::addHeaders(int content_len) {
+inline bool http::addHeaders(size_t content_len) {
     return addContentLength(content_len) && addLinger() &&
            addBlankLine();
 }
 
-bool http::addContentLength(int content_len) {
+inline bool http::addContentLength(size_t content_len) {
     return addResponse("Content-Length:%d\r\n", content_len);
 }
 
-bool http::addContentType() {
+inline bool http::addContentType() {
     return addResponse("Content-Type:%s\r\n", "text/html");
 }
 
-bool http::addLinger() {
-    return addResponse("Connection:%s\r\n", (m_linger == true) ? "keep-alive" : "close");
+inline bool http::addLinger() {
+    return addResponse("Connection:%s\r\n", m_linger ? "keep-alive" : "close");
 }
 
-bool http::addBlankLine() {
+inline bool http::addBlankLine() {
     return addResponse("%s", "\r\n");
 }
 
-bool http::addContent(const char *content) {
+inline bool http::addContent(const char *content) {
     return addResponse("%s", content);
 }
 
@@ -313,7 +311,7 @@ http::HTTP_CODE http::parse_content() {
 }
 
 bool http::write() {
-    int len = -1;
+    ssize_t len = -1;
     bool flag = false;
     while (true) {
         len = writev(sockfd, m_iv, count_iv);

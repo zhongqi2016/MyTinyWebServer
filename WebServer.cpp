@@ -5,7 +5,7 @@
 #include "WebServer.h"
 
 
-void WebServer::start() {
+void WebServer::start() const {
     struct sockaddr_in addressServer;
     int sockServer = socket(PF_INET, SOCK_STREAM, 0);
     if (sockServer < 0) {
