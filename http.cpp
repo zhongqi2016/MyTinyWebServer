@@ -5,30 +5,44 @@
 #include <iostream>
 #include "http.h"
 
-void http::init(int _sockfd) {
+std::atomic<int> http::userCount;
+
+void http::init(int _sockfd, sockaddr_in &_address) {
     sockfd = _sockfd;
+    address = _address;
     memset(readBuffer, '\0', READ_BUFFER_SIZE);
     read_index = 0;
     write_index = 0;
     checked_index = 0;
     start_line = 0;
+    isClose = false;
+    ++userCount;
 
-    read_once();
-    checkState = CHECK_STATE_REQUESTLINE;
-    process();
+//    read_once();
+//    checkState = CHECK_STATE_REQUESTLINE;
+//    process();
 //    write();
-    close(sockfd);
 
 }
 
-bool http::read_once() {
-    int dataRead = 0;
+void http::closeClient() {
+    if (!isClose) {
+        isClose = true;
+        --userCount;
+        close(sockfd);
+    }
+}
 
+bool http::read_once() {
+    if (read_index >= READ_BUFFER_SIZE) {
+        return false;
+    }
+    int dataRead = 0;
     //LT read
     dataRead = recv(sockfd, readBuffer + read_index, READ_BUFFER_SIZE - read_index, 0);
     read_index += dataRead;
     if (dataRead == -1) {
-        printf("read failed\n");
+        printf("read failed,fd=%d, errno=%d\n",sockfd,errno);
         return false;
     } else if (dataRead == 0) {
         printf("client has closed the connection\n");
@@ -86,7 +100,7 @@ http::LINE_STATUS http::parse_line() {
 }
 
 //分析请求行
-http::HTTP_CODE http::parse_requestline(char *temp, http::CHECK_STATE &checkState) {
+http::HTTP_CODE http::parse_requestline(char *temp) {
 
     //如果请求行没有空格或"\t"则肯定有问题
     url = strpbrk(temp, " \t");
@@ -283,7 +297,7 @@ http::HTTP_CODE http::parse_content() {
 
         switch (checkState) {
             case CHECK_STATE_REQUESTLINE: {
-                httpCode = parse_requestline(temp, checkState);
+                httpCode = parse_requestline(temp);
                 if (httpCode == BAD_REQUEST) {
                     return BAD_REQUEST;
                 }

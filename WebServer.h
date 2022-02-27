@@ -4,25 +4,49 @@
 
 #ifndef WEBSERVER_WEBSERVER_H
 #define WEBSERVER_WEBSERVER_H
+
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <signal.h>
-#include <assert.h>
 #include <netinet/in.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include <unistd.h>
-#include <string.h>
 #include <thread>
-
+#include <sys/epoll.h>
+#include <unordered_map>
 #include "http.h"
+#include "ThreadPool.h"
 
 class WebServer {
 public:
-    WebServer(int _port):port(_port){}
-    void start() const;
+    static const int MAX_EVENT_NUMBER = 1000;
+    static const int MAX_FD = 65535;
+
+    explicit WebServer(int _port) : port(_port) {}
+
+    bool init();
+
+    void start();
+
 private:
+    void dealListen();
+
+    static void showError(int fd, const char *info);
+
+    void dealRead(http *client);
+
+    void dealWrite(http *client);
+
+    static void closeConn(http *client);
+
+     static void onRead(http *client);
+
+     static void onWrite(http *client);
+
     int port;
+    int listenFd{};
+    int epollFd{};
+    epoll_event events[MAX_EVENT_NUMBER];
+    std::unordered_map<int, http> users;
+    std::unique_ptr<ThreadPool> threadPool;
 };
 
 

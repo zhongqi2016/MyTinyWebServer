@@ -14,6 +14,7 @@
 #include <fcntl.h>
 #include <cstdarg>
 #include <cerrno>
+#include <atomic>
 
 
 class http {
@@ -21,6 +22,7 @@ public:
     static const int READ_BUFFER_SIZE = 2048;
     static const int WRITE_BUFFER_SIZE = 1024;
     static constexpr const char *srcDir = "./files";
+    static std::atomic<int> userCount;
     enum CHECK_STATE {
         CHECK_STATE_REQUESTLINE = 0, CHECK_STATE_HEADER
     };
@@ -38,22 +40,28 @@ public:
         CLOSED_CONNECTION
     };
 public:
-    void init(int _sockfd);
+    void init(int _sockfd, sockaddr_in &_address);
+
+    void closeClient();
+
+    bool read_once();
+
+    bool write();
+
+    void process();
 
 private:
-    bool read_once();
 
     HTTP_CODE parse_content();
 
     LINE_STATUS parse_line();
 
-    HTTP_CODE parse_requestline(char *temp, CHECK_STATE &checkState);
+    HTTP_CODE parse_requestline(char *temp);
 
     HTTP_CODE do_request();
 
     static HTTP_CODE parse_headers(const char *temp);
 
-    void process();
 
     bool process_write(HTTP_CODE ret);
 
@@ -73,12 +81,12 @@ private:
 
     bool addContent(const char *content);
 
-    bool write();
-
 
 private:
     bool m_linger;
+    bool isClose;
     int sockfd;
+    sockaddr_in address;
     int start_line;
     int checked_index;
     int read_index;

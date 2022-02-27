@@ -18,6 +18,7 @@ static void handle_term(int sig) {
 
 int main(int argc,char* argv[]) {
     WebServer myServ=WebServer(63343);
+    myServ.init();
     myServ.start();
 //    signal(SIGTERM,handle_term);
 //
