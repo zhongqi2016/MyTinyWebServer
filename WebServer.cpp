@@ -9,6 +9,8 @@
 bool WebServer::init() {
     http::userCount.store(0);
     threadPool = std::make_unique<ThreadPool>(8);
+    ep_ctl=std::make_unique<EpollControl>();
+
     if (port > 65535 || port < 1024) {
         printf("Port error!\n");
         return false;

@@ -14,6 +14,7 @@
 #include <unordered_map>
 #include "http.h"
 #include "ThreadPool.h"
+#include "EpollControl.h"
 
 class WebServer {
 public:
@@ -47,6 +48,7 @@ private:
     epoll_event events[MAX_EVENT_NUMBER];
     std::unordered_map<int, http> users;
     std::unique_ptr<ThreadPool> threadPool;
+    std::unique_ptr<EpollControl> ep_ctl;
 };
 
 
