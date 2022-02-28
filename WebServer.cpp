@@ -39,22 +39,7 @@ bool WebServer::init() {
         close(listenFd);
         return false;
     }
-
-    epollFd = epoll_create(1);
-    if (epollFd == -1) {
-        printf("Epoll create error!\n");
-        close(listenFd);
-        return false;
-    }
-    epoll_event ev = {0};
-    ev.data.fd = listenFd;
-    ev.events = EPOLLIN;
-    ret = epoll_ctl(epollFd, EPOLL_CTL_ADD, listenFd, &ev);
-    if (ret != 0) {
-        printf("Add listen error");
-        close(listenFd);
-        return false;
-    }
+    ep_ctl->addFd(listenFd);
     return true;
 //----
 /*
@@ -92,10 +77,7 @@ void WebServer::dealListen() {
     socklen_t lenAddrClient = sizeof(addrClient);
 
     int connFd = accept(listenFd, (struct sockaddr *) &addrClient, &lenAddrClient);
-    epoll_event ev={0};
-    ev.data.fd=connFd;
-    ev.events=EPOLLIN|EPOLLET|EPOLLRDHUP;
-    epoll_ctl(listenFd,EPOLL_CTL_ADD,connFd,&ev);
+    ep_ctl->addFd(connFd);
     if (connFd <= 0) {
         printf("Errno is %d\n",errno);
         return;
@@ -137,26 +119,26 @@ inline void WebServer::onWrite(http *client) {
 void WebServer::start() {
 
     while (true) {
-        int number = epoll_wait(epollFd, events, MAX_EVENT_NUMBER, -1);
+        int number = ep_ctl->wait(-1);
         if ((number < 0) && (errno != EINTR)) {
             printf("epoll failure\n");
             break;
         }
         printf("number of events:%d\n",number);
         for (int i = 0; i < number; ++i) {
-            int sockFd = events[i].data.fd;
+            int sockFd = ep_ctl->getEventDataFd(i);
 
             printf("server %d,client %d\n",listenFd,sockFd);
             if (sockFd == listenFd) {
                 //新的客户连接
                 dealListen();
-            } else if (events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
+            } else if (ep_ctl->getEvent(i) & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
                 //服务器关闭客户连接
                 closeConn(&users[sockFd]);
-            } else if (events[i].events & EPOLLIN) {
+            } else if (ep_ctl->getEvent(i) & EPOLLIN) {
                 //读
                 dealRead(&users[sockFd]);
-            } else if (events[i].events & EPOLLOUT) {
+            } else if (ep_ctl->getEvent(i) & EPOLLOUT) {
                 //写
                 dealWrite(&users[sockFd]);
             }

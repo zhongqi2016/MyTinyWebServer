@@ -45,7 +45,7 @@ private:
     int port;
     int listenFd{};
     int epollFd{};
-    epoll_event events[MAX_EVENT_NUMBER];
+//    epoll_event events[MAX_EVENT_NUMBER];
     std::unordered_map<int, http> users;
     std::unique_ptr<ThreadPool> threadPool;
     std::unique_ptr<EpollControl> ep_ctl;

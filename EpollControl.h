@@ -14,19 +14,26 @@ class EpollControl {
 public:
     static const int MAX_EVENT_NUMBER = 1000;
 
-    explicit EpollControl() : epollFd(epoll_create(1)) {}
+    explicit EpollControl() : epollFd(epoll_create(1)) {
+    }
 
     ~EpollControl();
 
-    bool addFd(int fd,bool oneShot);
+    int wait(int timeout);
+
+    bool addFd(int fd) const;
 
     bool delFd(int fd);
 
-    bool modFd(int fd,int events);
+    bool modFd(int fd, int events);
+
+    int getEventDataFd(int i) const;
+
+    uint32_t getEvent(int i) const;
 
 private:
     int epollFd;
-    epoll_event events[MAX_EVENT_NUMBER];
+    epoll_event events[MAX_EVENT_NUMBER]{};
 };
 
 
