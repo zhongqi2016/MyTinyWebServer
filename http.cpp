@@ -28,6 +28,7 @@ void http::init(int _sockfd, sockaddr_in &_address) {
 
 void http::closeClient() {
     if (!isClose) {
+        sockfd=-1;
         isClose = true;
         --userCount;
         close(sockfd);
@@ -104,7 +105,6 @@ http::LINE_STATUS http::parse_line() {
 
 //分析请求行
 http::HTTP_CODE http::parse_requestline(char *temp) {
-    printf("request line:%s\n", temp);
     //如果请求行没有空格或"\t"则肯定有问题
     url = strpbrk(temp, " \t");
     if (!url) {
@@ -144,7 +144,6 @@ http::HTTP_CODE http::parse_requestline(char *temp) {
         printf("bad url\n");
         return BAD_REQUEST;
     }
-    printf("The request url is %s\n", url);
 
     checkState = CHECK_STATE_HEADER;
     return NO_REQUEST;
@@ -213,8 +212,7 @@ http::HTTP_CODE http::do_request() {
     } else {
         strcat(pathOfFile, url);
     }
-    printf("url:%s\n", url);
-    printf("get data from:%s\n", pathOfFile);
+
     //通过stat请求资源文件信息，成功则将信息存储到fileStat
     if (stat(pathOfFile, &fileStat) < 0) {
         printf("找不到资源\n");
@@ -357,7 +355,7 @@ bool http::write() {
 
         if (len <= 0) {
             flag = false;
-            std::cout << errno << std::endl;
+//            std::cout <<"errno"<< errno << std::endl;
             break;
         }
         if (m_iv[0].iov_len + m_iv[1].iov_len <= 0) {
@@ -386,7 +384,6 @@ bool http::write() {
     return flag;
 }
 
-
 bool http::process() {
     HTTP_CODE resRead = processRead();
     if (resRead == NO_REQUEST) {
@@ -394,7 +391,7 @@ bool http::process() {
     }
     bool resWrite = process_write(resRead);
     if (!resWrite) {
-        close(sockfd);
+        closeClient();
     }
     return write();
 }

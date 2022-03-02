@@ -170,11 +170,9 @@ void WebServer::start() {
             printf("epoll failure\n");
             break;
         }
-        printf("number :%d\n",number);
         for (int i = 0; i < number; ++i) {
             int sockFd = ep_ctl->getEventDataFd(i);
 
-            printf("server %d,client %d\n", listenFd, sockFd);
             if (sockFd == listenFd) {
                 //新的客户连接
                 printf("listen\n");
@@ -194,4 +192,5 @@ void WebServer::start() {
             }
         }
     }
+    close(listenFd);
 }
