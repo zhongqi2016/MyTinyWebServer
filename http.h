@@ -44,15 +44,21 @@ public:
 
     void closeClient();
 
-    bool read_once();
+    bool read();
 
     bool write();
 
-    void process();
+    bool process();
+
+    [[nodiscard]] int getFd() const { return sockfd; }
+
+    [[nodiscard]] size_t bytesToWrite() const { return m_iv[0].iov_len + m_iv[1].iov_len; }
+
+    [[nodiscard]] bool getKeepAlive() const { return keepAlive; }
 
 private:
 
-    HTTP_CODE parse_content();
+    HTTP_CODE processRead();
 
     LINE_STATUS parse_line();
 
@@ -60,7 +66,7 @@ private:
 
     HTTP_CODE do_request();
 
-    static HTTP_CODE parse_headers(const char *temp);
+    HTTP_CODE parse_headers(const char *temp);
 
 
     bool process_write(HTTP_CODE ret);
@@ -83,8 +89,8 @@ private:
 
 
 private:
-    bool m_linger;
     bool isClose;
+    bool keepAlive;
     int sockfd;
     sockaddr_in address;
     int start_line;

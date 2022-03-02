@@ -5,12 +5,12 @@
 #include <cassert>
 #include "WebServer.h"
 
+std::unique_ptr<EpollControl> WebServer::ep_ctl = std::make_unique<EpollControl>();
 
 bool WebServer::init() {
     http::userCount.store(0);
     threadPool = std::make_unique<ThreadPool>(8);
-    ep_ctl=std::make_unique<EpollControl>();
-
+    openLinger = true;
     if (port > 65535 || port < 1024) {
         printf("Port error!\n");
         return false;
@@ -19,6 +19,29 @@ bool WebServer::init() {
     listenFd = socket(PF_INET, SOCK_STREAM, 0);
     if (listenFd < 0) {
         printf("socket error!\n");
+        return false;
+    }
+
+    //优雅关闭
+    struct linger optLinger = {0};
+    if (openLinger) {
+        //close时阻塞直到超时或数据发送完毕
+        optLinger.l_linger = 1;
+        optLinger.l_onoff = 1;
+    }
+    if (setsockopt(listenFd, SOL_SOCKET, SO_LINGER,
+                   &optLinger, sizeof(optLinger)) < 0) {
+        close(listenFd);
+        printf("Init linger error\n");
+        return false;
+    }
+
+    //端口复用
+    int opt = 1;
+    if (setsockopt(listenFd, SOL_SOCKET, SO_REUSEADDR,
+                   (const void *) &opt, sizeof(opt)) < 0) {
+        close(listenFd);
+        printf("reuseaddr error!\n");
         return false;
     }
 
@@ -40,6 +63,7 @@ bool WebServer::init() {
         return false;
     }
     ep_ctl->addFd(listenFd);
+    setNonBlock(listenFd);
     return true;
 //----
 /*
@@ -76,26 +100,36 @@ void WebServer::dealListen() {
     struct sockaddr_in addrClient{};
     socklen_t lenAddrClient = sizeof(addrClient);
 
-    int connFd = accept(listenFd, (struct sockaddr *) &addrClient, &lenAddrClient);
-    ep_ctl->addFd(connFd);
-    if (connFd <= 0) {
-        printf("Errno is %d\n",errno);
-        return;
-    } else if (http::userCount >= MAX_FD) {
-        showError(connFd, "Server busy");
-        return;
+    while (true) {
+        int connFd = accept(listenFd, (struct sockaddr *) &addrClient, &lenAddrClient);
+        ep_ctl->addFd(connFd);
+        if (connFd < 0) {
+            return;
+        } else if (http::userCount >= MAX_FD) {
+            showError(connFd, "Server busy");
+            return;
+        }
+        setNonBlock(connFd);
+        users[connFd].init(connFd, addrClient);
     }
-    users[connFd].init(connFd, addrClient);
 }
 
 inline void WebServer::closeConn(http *client) {
+    ep_ctl->delFd(client->getFd());
     client->closeClient();
 }
 
+inline void WebServer::onProcess(http *client) {
+    if (client->process()) {
+        ep_ctl->modFd(client->getFd(), EPOLLOUT);
+    } else {
+        ep_ctl->modFd(client->getFd(), EPOLLIN);
+    }
+}
+
 inline void WebServer::onRead(http *client) {
-    int readErrno=0;
-    if (client->read_once()) {
-        client->process();
+    if (client->read()) {
+        onProcess(client);
     } else {
         closeConn(client);
     }
@@ -111,9 +145,21 @@ inline void WebServer::dealWrite(http *client) {
 }
 
 inline void WebServer::onWrite(http *client) {
-    if (client->write()) {
-        client->closeClient();
+    int ret = client->write();
+    if (client->bytesToWrite() == 0) {
+        if (client->getKeepAlive()) {
+            onProcess(client);
+            return;
+        }
+    } else if (ret < 0) {
+        return;
     }
+    client->closeClient();
+}
+
+int WebServer::setNonBlock(int fd) {
+    assert(fd > 0);
+    return fcntl(fd, F_SETFL, fcntl(fd, F_GETFD, 0) | O_NONBLOCK);
 }
 
 void WebServer::start() {
@@ -124,22 +170,26 @@ void WebServer::start() {
             printf("epoll failure\n");
             break;
         }
-        printf("number of events:%d\n",number);
+        printf("number :%d\n",number);
         for (int i = 0; i < number; ++i) {
             int sockFd = ep_ctl->getEventDataFd(i);
 
-            printf("server %d,client %d\n",listenFd,sockFd);
+            printf("server %d,client %d\n", listenFd, sockFd);
             if (sockFd == listenFd) {
                 //新的客户连接
+                printf("listen\n");
                 dealListen();
             } else if (ep_ctl->getEvent(i) & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
                 //服务器关闭客户连接
+                printf("close\n");
                 closeConn(&users[sockFd]);
             } else if (ep_ctl->getEvent(i) & EPOLLIN) {
                 //读
+                printf("read\n");
                 dealRead(&users[sockFd]);
             } else if (ep_ctl->getEvent(i) & EPOLLOUT) {
                 //写
+                printf("write\n");
                 dealWrite(&users[sockFd]);
             }
         }

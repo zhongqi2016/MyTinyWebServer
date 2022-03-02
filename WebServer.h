@@ -38,17 +38,22 @@ private:
 
     static void closeConn(http *client);
 
-     static void onRead(http *client);
+    static void onProcess(http *client);
 
-     static void onWrite(http *client);
+    static void onRead(http *client);
+
+    static void onWrite(http *client);
+
+    int setNonBlock(int fd);
 
     int port;
-    int listenFd{};
-    int epollFd{};
+    int listenFd;
+    int epollFd;
+    bool openLinger;
 //    epoll_event events[MAX_EVENT_NUMBER];
     std::unordered_map<int, http> users;
     std::unique_ptr<ThreadPool> threadPool;
-    std::unique_ptr<EpollControl> ep_ctl;
+    static std::unique_ptr<EpollControl> ep_ctl;
 };
 
 

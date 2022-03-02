@@ -16,9 +16,10 @@ void http::init(int _sockfd, sockaddr_in &_address) {
     checked_index = 0;
     start_line = 0;
     isClose = false;
+    keepAlive = false;
     ++userCount;
 
-//    read_once();
+//    read();
 //    checkState = CHECK_STATE_REQUESTLINE;
 //    process();
 //    write();
@@ -33,39 +34,41 @@ void http::closeClient() {
     }
 }
 
-bool http::read_once() {
+bool http::read() {
     if (read_index >= READ_BUFFER_SIZE) {
         return false;
     }
     int dataRead = 0;
+    memset(readBuffer,'\0',READ_BUFFER_SIZE);
     //LT read
-    dataRead = recv(sockfd, readBuffer + read_index, READ_BUFFER_SIZE - read_index, 0);
-    read_index += dataRead;
-    if (dataRead == -1) {
-        printf("read failed,fd=%d, errno=%d\n",sockfd,errno);
-        return false;
-    } else if (dataRead == 0) {
-        printf("client has closed the connection\n");
-        return false;
-    }
+
+//    dataRead = recv(sockfd, readBuffer + read_index, READ_BUFFER_SIZE - read_index, 0);
+//    read_index += dataRead;
+//    if (dataRead == -1) {
+//        printf("read failed,fd=%d, errno=%d\n", sockfd, errno);
+//        return false;
+//    } else if (dataRead == 0) {
+//        printf("client has closed the connection\n");
+//        return false;
+//    }
 
     //ET read
-//    while (true) {
-//        dataRead = recv(sockfd, readBuffer + read_index, READ_BUFFER_SIZE - read_index, 0);
-//        if (dataRead == -1) {
-//            printf("read failed\n");
-//            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-//                break;
-//            }
-//            return false;
-//        } else if (dataRead == 0) {
-//            printf("client has closed the connection\n");
-//            return false;
-//        }
-//        read_index += dataRead;
-//    }
+    while (true) {
+        dataRead = recv(sockfd, readBuffer + read_index, READ_BUFFER_SIZE - read_index, 0);
+        if (dataRead < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                break;
+            }
+            return false;
+        } else if (dataRead == 0) {
+            printf("client has closed the connection\n");
+            return false;
+        }
+        read_index += dataRead;
+    }
     return true;
 }
+
 
 //从状态机，解析第一行内容
 http::LINE_STATUS http::parse_line() {
@@ -101,7 +104,7 @@ http::LINE_STATUS http::parse_line() {
 
 //分析请求行
 http::HTTP_CODE http::parse_requestline(char *temp) {
-
+    printf("request line:%s\n", temp);
     //如果请求行没有空格或"\t"则肯定有问题
     url = strpbrk(temp, " \t");
     if (!url) {
@@ -129,6 +132,7 @@ http::HTTP_CODE http::parse_requestline(char *temp) {
 
     //仅HTTP1.1
     if (strcasecmp(version, "HTTP/1.1") != 0) {
+        printf("version!=HTTP/1.1\n");
         return BAD_REQUEST;
     }
     if (strncasecmp(url, "http://", 7) == 0) {
@@ -137,6 +141,7 @@ http::HTTP_CODE http::parse_requestline(char *temp) {
         //url指向/
     }
     if (!url || url[0] != '/') {
+        printf("bad url\n");
         return BAD_REQUEST;
     }
     printf("The request url is %s\n", url);
@@ -145,6 +150,60 @@ http::HTTP_CODE http::parse_requestline(char *temp) {
     return NO_REQUEST;
 }
 
+//分析头部字段
+http::HTTP_CODE http::parse_headers(const char *temp) {
+    //如果遇到一个空行，说明我们的到了一个正确的HTTP请求
+    if (temp[0] == '\0') {
+        return GET_REQUEST;
+    } else if (strncasecmp(temp, "Connection:", 11) == 0) {
+        //比较前n个字符
+        temp += 11;
+        temp += strspn(temp, " \t");
+        if (strncasecmp(temp, "keep-alive", 10)) {
+            keepAlive = true;
+        }
+    } else {
+//        printf("Can't handle this header\n");
+    }
+    return NO_REQUEST;
+}
+
+http::HTTP_CODE http::processRead() {
+    LINE_STATUS lineStatus = LINE_OK;
+    HTTP_CODE httpCode = NO_REQUEST;
+    checkState = CHECK_STATE_REQUESTLINE;
+    while ((lineStatus = parse_line()) == LINE_OK) {
+        char *temp = readBuffer + start_line;
+        start_line = checked_index;
+        switch (checkState) {
+            case CHECK_STATE_REQUESTLINE: {
+                httpCode = parse_requestline(temp);
+                if (httpCode == BAD_REQUEST) {
+                    printf("Bad request line\n");
+                    return BAD_REQUEST;
+                }
+                break;
+            }
+            case CHECK_STATE_HEADER: {
+                httpCode = parse_headers(temp);
+                if (httpCode == BAD_REQUEST) {
+                    return BAD_REQUEST;
+                } else if (httpCode == GET_REQUEST) {
+                    return do_request();
+                }
+                break;
+            }
+            default: {
+                return INTERNAL_ERROR;
+            }
+        }
+    }
+    if (lineStatus == LINE_OPEN) {
+        return NO_REQUEST;
+    } else {
+        return BAD_REQUEST;
+    }
+}
 
 http::HTTP_CODE http::do_request() {
     char *pathOfFile = (char *) malloc(strlen(pathOfFile) + strlen(url) + 1);
@@ -154,16 +213,21 @@ http::HTTP_CODE http::do_request() {
     } else {
         strcat(pathOfFile, url);
     }
+    printf("url:%s\n", url);
+    printf("get data from:%s\n", pathOfFile);
     //通过stat请求资源文件信息，成功则将信息存储到fileStat
     if (stat(pathOfFile, &fileStat) < 0) {
+        printf("找不到资源\n");
         return NO_RESOURCE;
     }
     //若资源文件不可读
     if (!(fileStat.st_mode & S_IROTH)) {
+        printf("资源文件不可读\n");
         return FORBIDDEN_REQUEST;
     }
     //若文件类型为目录
     if (S_ISDIR(fileStat.st_mode)) {
+        printf("文件类型为目录\n");
         return BAD_REQUEST;
     }
 
@@ -211,7 +275,7 @@ inline bool http::addContentType() {
 }
 
 inline bool http::addLinger() {
-    return addResponse("Connection:%s\r\n", m_linger ? "keep-alive" : "close");
+    return addResponse("Connection:%s\r\n", keepAlive ? "keep-alive" : "close");
 }
 
 inline bool http::addBlankLine() {
@@ -234,8 +298,17 @@ bool http::process_write(HTTP_CODE ret) {
             break;
         }
         case BAD_REQUEST: {
-            addStatusLine(404, "bad request");
-            const char *str404("Bad request\n");
+            addStatusLine(400, "bad request");
+            const char *str400("Bad request\n");
+            addHeaders(strlen(str400));
+            if (!addContent(str400)) {
+                return false;
+            }
+            break;
+        }
+        case NO_RESOURCE: {
+            addStatusLine(404, "No resource");
+            const char *str404("No resource\n");
             addHeaders(strlen(str404));
             if (!addContent(str404)) {
                 return false;
@@ -275,54 +348,6 @@ bool http::process_write(HTTP_CODE ret) {
     return true;
 }
 
-//分析头部字段
-http::HTTP_CODE http::parse_headers(const char *temp) {
-    //如果遇到一个空行，说明我们的到了一个正确的HTTP请求
-    if (temp[0] == '\0') {
-        return GET_REQUEST;
-    } else {
-        printf("Can't handle this header\n");
-    }
-    return NO_REQUEST;
-}
-
-http::HTTP_CODE http::parse_content() {
-
-    LINE_STATUS lineStatus = LINE_OK;
-    HTTP_CODE httpCode = NO_REQUEST;
-
-    while ((lineStatus = parse_line()) == LINE_OK) {
-        char *temp = readBuffer + start_line;
-        start_line = checked_index;
-
-        switch (checkState) {
-            case CHECK_STATE_REQUESTLINE: {
-                httpCode = parse_requestline(temp);
-                if (httpCode == BAD_REQUEST) {
-                    return BAD_REQUEST;
-                }
-                break;
-            }
-            case CHECK_STATE_HEADER: {
-                httpCode = parse_headers(temp);
-                if (httpCode == BAD_REQUEST) {
-                    return BAD_REQUEST;
-                } else if (httpCode == GET_REQUEST) {
-                    return do_request();
-                }
-                break;
-            }
-            default: {
-                return INTERNAL_ERROR;
-            }
-        }
-    }
-    if (lineStatus == LINE_OPEN) {
-        return NO_REQUEST;
-    } else {
-        return BAD_REQUEST;
-    }
-}
 
 bool http::write() {
     ssize_t len = -1;
@@ -362,14 +387,14 @@ bool http::write() {
 }
 
 
-void http::process() {
-    HTTP_CODE resRead = parse_content();
+bool http::process() {
+    HTTP_CODE resRead = processRead();
     if (resRead == NO_REQUEST) {
-        return;
+        return false;
     }
     bool resWrite = process_write(resRead);
     if (!resWrite) {
         close(sockfd);
     }
-    write();
+    return write();
 }
