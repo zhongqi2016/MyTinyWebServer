@@ -147,14 +147,16 @@ inline void WebServer::dealWrite(http *client) {
 inline void WebServer::onWrite(http *client) {
     int ret = client->write();
     if (client->bytesToWrite() == 0) {
+        //传输完毕
         if (client->getKeepAlive()) {
+            client->init();
             onProcess(client);
             return;
         }
     } else if (ret < 0) {
         return;
     }
-    client->closeClient();
+    closeConn(client);
 }
 
 int WebServer::setNonBlock(int fd) {
@@ -175,19 +177,19 @@ void WebServer::start() {
 
             if (sockFd == listenFd) {
                 //新的客户连接
-                printf("listen\n");
+//                printf("listen\n");
                 dealListen();
             } else if (ep_ctl->getEvent(i) & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
                 //服务器关闭客户连接
-                printf("close\n");
+//                printf("close\n");
                 closeConn(&users[sockFd]);
             } else if (ep_ctl->getEvent(i) & EPOLLIN) {
                 //读
-                printf("read\n");
+//                printf("read\n");
                 dealRead(&users[sockFd]);
             } else if (ep_ctl->getEvent(i) & EPOLLOUT) {
                 //写
-                printf("write\n");
+//                printf("write\n");
                 dealWrite(&users[sockFd]);
             }
         }

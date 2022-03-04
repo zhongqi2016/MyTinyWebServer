@@ -7,16 +7,21 @@
 
 std::atomic<int> http::userCount;
 
-void http::init(int _sockfd, sockaddr_in &_address) {
-    sockfd = _sockfd;
-    address = _address;
-    memset(readBuffer, '\0', READ_BUFFER_SIZE);
+void http::init() {
     read_index = 0;
     write_index = 0;
     checked_index = 0;
     start_line = 0;
     isClose = false;
     keepAlive = false;
+    memset(readBuffer, '\0', READ_BUFFER_SIZE);
+    memset(writeBuffer, '\0', WRITE_BUFFER_SIZE);
+
+}
+void http::init(int _sockfd, sockaddr_in &_address) {
+    sockfd = _sockfd;
+    address = _address;
+    init();
     ++userCount;
 
 //    read();
@@ -28,10 +33,10 @@ void http::init(int _sockfd, sockaddr_in &_address) {
 
 void http::closeClient() {
     if (!isClose) {
+        close(sockfd);
         sockfd=-1;
         isClose = true;
         --userCount;
-        close(sockfd);
     }
 }
 
@@ -158,7 +163,7 @@ http::HTTP_CODE http::parse_headers(const char *temp) {
         //比较前n个字符
         temp += 11;
         temp += strspn(temp, " \t");
-        if (strncasecmp(temp, "keep-alive", 10)) {
+        if (strncasecmp(temp, "keep-alive", 10)==0) {
             keepAlive = true;
         }
     } else {
@@ -385,13 +390,14 @@ bool http::write() {
 }
 
 bool http::process() {
+//    init();
     HTTP_CODE resRead = processRead();
     if (resRead == NO_REQUEST) {
         return false;
     }
-    bool resWrite = process_write(resRead);
-    if (!resWrite) {
+    bool resProcWrite = process_write(resRead);
+    if (!resProcWrite) {
         closeClient();
     }
-    return write();
+    return true;
 }

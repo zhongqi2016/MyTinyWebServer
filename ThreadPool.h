@@ -16,7 +16,7 @@
 
 class ThreadPool {
 public:
-    explicit ThreadPool(int _numThreads = 8);
+    explicit ThreadPool(int _numThreads = 7);
 
     template<class T>
     void append(T &&task){

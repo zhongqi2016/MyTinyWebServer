@@ -40,6 +40,7 @@ public:
         CLOSED_CONNECTION
     };
 public:
+    void init();
     void init(int _sockfd, sockaddr_in &_address);
 
     void closeClient();
