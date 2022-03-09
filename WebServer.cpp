@@ -62,7 +62,7 @@ bool WebServer::init() {
         close(listenFd);
         return false;
     }
-    ep_ctl->addFd(listenFd);
+    ep_ctl->addFd(listenFd, false);
     setNonBlock(listenFd);
     return true;
 //----
@@ -102,7 +102,7 @@ void WebServer::dealListen() {
 
     while (true) {
         int connFd = accept(listenFd, (struct sockaddr *) &addrClient, &lenAddrClient);
-        ep_ctl->addFd(connFd);
+        ep_ctl->addFd(connFd, true);
         if (connFd < 0) {
             return;
         } else if (http::userCount >= MAX_FD) {
@@ -159,7 +159,7 @@ inline void WebServer::onWrite(http *client) {
     closeConn(client);
 }
 
-int WebServer::setNonBlock(int fd) {
+inline int WebServer::setNonBlock(int fd) {
     assert(fd > 0);
     return fcntl(fd, F_SETFL, fcntl(fd, F_GETFD, 0) | O_NONBLOCK);
 }

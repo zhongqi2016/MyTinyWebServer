@@ -13,11 +13,14 @@ int EpollControl::wait(int timeout) {
     return epoll_wait(epollFd, events, MAX_EVENT_NUMBER, timeout);
 }
 
-bool EpollControl::addFd(int fd) const {
+bool EpollControl::addFd(int fd,bool oneShot) const {
     if (fd < 0) return false;
     epoll_event ev = {0};
     ev.data.fd = fd;
     ev.events = EPOLLIN | EPOLL_CTL_ADD | EPOLLRDHUP | EPOLLET;
+    if(oneShot){
+        ev.events|=EPOLLONESHOT;
+    }
     return epoll_ctl(epollFd, EPOLL_CTL_ADD, fd, &ev) == 0;
 }
 
@@ -27,11 +30,11 @@ bool EpollControl::delFd(int fd) {
     return epoll_ctl(epollFd, EPOLL_CTL_DEL, fd, &ev) == 0;
 }
 
-bool EpollControl::modFd(int fd, int events) {
+bool EpollControl::modFd(int fd, int event) {
     if (fd < 0) return false;
     epoll_event ev = {0};
     ev.data.fd = fd;
-    ev.events = events | EPOLLET | EPOLLONESHOT | EPOLLRDHUP;
+    ev.events = event | EPOLLET | EPOLLONESHOT | EPOLLRDHUP;
     return epoll_ctl(epollFd, EPOLL_CTL_MOD, fd, &ev) == 0;
 }
 

@@ -119,9 +119,9 @@ http::HTTP_CODE http::parse_requestline(char *temp) {
 
     method = temp;
     if (strcasecmp(method, "GET") == 0) {
-        printf("Request is GET\n");
+//        printf("Request is GET\n");
     } else if (strcasecmp(method, "POST") == 0) {
-        printf("Request is POST\n");
+//        printf("Request is POST\n");
     } else {
         return BAD_REQUEST;
     }
@@ -140,6 +140,7 @@ http::HTTP_CODE http::parse_requestline(char *temp) {
         printf("version!=HTTP/1.1\n");
         return BAD_REQUEST;
     }
+
     if (strncasecmp(url, "http://", 7) == 0) {
         url += 7;
         url = strchr(url, '/');
@@ -210,7 +211,7 @@ http::HTTP_CODE http::processRead() {
 }
 
 http::HTTP_CODE http::do_request() {
-    char *pathOfFile = (char *) malloc(strlen(pathOfFile) + strlen(url) + 1);
+    char *pathOfFile = (char *) malloc(strlen(srcDir) + strlen(url) + 1);
     strcpy(pathOfFile, srcDir);
     if (strcmp(url, "/") == 0) {
         strcat(pathOfFile, "/test.html");
@@ -220,7 +221,7 @@ http::HTTP_CODE http::do_request() {
 
     //通过stat请求资源文件信息，成功则将信息存储到fileStat
     if (stat(pathOfFile, &fileStat) < 0) {
-        printf("找不到资源\n");
+//        printf("找不到资源\n");
         return NO_RESOURCE;
     }
     //若资源文件不可读

@@ -21,15 +21,15 @@ public:
 
     int wait(int timeout);
 
-    bool addFd(int fd) const;
+    bool addFd(int fd,bool oneShot) const;
 
     bool delFd(int fd);
 
-    bool modFd(int fd, int events);
+    bool modFd(int fd, int event);
 
-    int getEventDataFd(int i) const;
+    [[nodiscard]] int getEventDataFd(int i) const;
 
-    uint32_t getEvent(int i) const;
+    [[nodiscard]] uint32_t getEvent(int i) const;
 
 private:
     int epollFd;

@@ -1,7 +1,7 @@
 
 #include "WebServer.h"
 
-int main(int argc,char* argv[]) {
+int main() {
     WebServer myServ=WebServer(63343);
     myServ.init();
     myServ.start();

@@ -18,7 +18,7 @@
 
 class WebServer {
 public:
-    static const int MAX_EVENT_NUMBER = 1000;
+//    static const int MAX_EVENT_NUMBER = 1000;
     static const int MAX_FD = 65535;
 
     explicit WebServer(int _port) : port(_port) {}
@@ -44,7 +44,7 @@ private:
 
     static void onWrite(http *client);
 
-    int setNonBlock(int fd);
+    static int setNonBlock(int fd);
 
     int port;
     int listenFd;
